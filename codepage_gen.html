@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>fontpage</title>
+  </head>
+  <body>
+
+    <script type="text/javascript">
+      symbols = ["☀☁☂☃★☆☺☻♩♪♫♬♭♮♯♡",
+        "←↑→↓↔↕↖↗↘↙⇦⇧⇨⇩↺↻",
+        "∀∁∂∃∄∅∆∇∈∉∊∋∌∍∎∏",
+        "∐∑−∓∔∕∖∗∘∙√∛∜∝∞∟"];
+
+      cellSize = 64 | 0;
+      texSize = 1024 | 0;
+      tileCount = (texSize / cellSize) | 0
+      function createTextCanvas(color, font) {
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext('2d');
+        var fontStrA = 'bold ' + ((cellSize * 0.9218) + 'px ') + (font || 'Helvetica');
+        var fontStrB = 'bold ' + ((cellSize * 0.78125) + 'px ') + (font || 'Noto mono');
+//      var fontStrA = '' + ((cellSize - 14) + 'px ') + (font || 'Symbola');
+//      var fontStrB = '' + ((cellSize - 14) + 'px ') + (font || 'Symbola');
+        canvas.width = texSize;
+        canvas.height = texSize;
+        canvas.style.backgroundColor = 'rgba(100, 40, 60, 1.0)';
+        ctx.fillRect(0, 0, texSize, texSize);
+        for (var y = 0; y < tileCount; y++) {
+          for (var x = 0; x < tileCount; x++) {
+            ctx.fillRect((x+1)*cellSize-1,0,1,canvas.width);
+            ctx.fillRect(0, (y+1)*cellSize-1, canvas.width, 1);
+          }
+        }
+        ctx.fillStyle = color || 'white';
+        for (var y = 0; y < tileCount; y++) {
+          for (var x = 0; x < tileCount; x++) {
+            ctx.font = fontStrB;
+            var text = String.fromCharCode(x + y * tileCount)
+            if (y <= 1) text = symbols[y][x];
+            if ((y==8) || (y==9)) text = symbols[y-6][x];
+            var xoff = cellSize * 0.2656 //17;
+            var posx = xoff + x * cellSize;
+            var posy = y * cellSize + cellSize / 2 + cellSize / 3.5;
+            if ((y==1) && (x<10)) {
+              ctx.font = fontStrA;
+              posy += 4;
+              if (x == 4) posy -= 6;
+            }
+            mw = ctx.measureText(text).width;
+//            if (mw + xoff >= cellSize) posx -= (mw + xoff) - cellSize + 3;
+            if (y <= 1) posx = (cellSize-mw) / 2 + x * cellSize;  // Center symbols
+//            if ((x == 15) && (y == 5)) posy -= 6;     // HACK FOR UNDERSCORE!!!!
+//            if ((x == 0) && (y == 9)) posy -= 2;     // HACK FOR symbol
+//            if ((x == 10) && (y == 9)) posy += 6;     // HACK FOR symbol
+//            if (y == 0) posy += 4;
+            ctx.fillText(text, posx, posy);
+          }
+        }
+
+        var myImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        //blueComponent = myImageData.data[((50*(myImageData.width*4)) + (200*4)) + 2];
+        //myImageData.data[((2*(myImageData.width*4)) + (2*4)) + 2] = 255;
+        for (var y = 0; y < 3; y++) {
+          console.log("Row " + y);
+          for (var x = 0; x < tileCount; x++) {
+            console.log("Col " + x);
+            for (var dy = 0; dy < cellSize; dy++) {
+              for (var dx = 0; dx < cellSize; dx++) {
+                var distAndGrad = NearestPixelDistance(myImageData, x * cellSize + dx, y * cellSize + dy);
+                var dist = distAndGrad.dist
+                if (texSize == 2048) dist *= 0.5;
+                if (texSize == 4096) dist *= 0.25;
+                dist *= 4.0;  // Scale for more precision in 8 bit range.
+                dist = (dist) | 0;
+                dist += 128;
+                dist = Math.min(255, Math.max(0, dist));
+                SetPixelA(myImageData, x * cellSize + dx, y * cellSize + dy, dist);
+                var gradX = distAndGrad.gradX | 0;
+                var gradY = distAndGrad.gradY | 0;
+                gradX /= 2;
+                gradY /= 2;
+                gradX += 128;
+                gradY += 128;
+                gradX = Math.min(255, Math.max(0, gradX));
+                gradY = Math.min(255, Math.max(0, gradY));
+                SetPixelG(myImageData, x * cellSize + dx, y * cellSize + dy, gradX);
+                SetPixelB(myImageData, x * cellSize + dx, y * cellSize + dy, gradY);
+              }
+            }
+          }
+        }
+        ctx.putImageData(myImageData, 0, 0);
+        
+        return canvas;
+      }
+
+      function CalcGrad(imageData, x, y) {
+        var pix00 = GetPixelR(imageData, x, y)
+        var pixP0 = GetPixelR(imageData, x + 1, y)
+        var pixN0 = GetPixelR(imageData, x - 1, y)
+        var pix0P = GetPixelR(imageData, x, y + 1)
+        var pix0N = GetPixelR(imageData, x, y - 1)
+        /*var pixPP = GetPixelR(imageData, x + 1, y + 1)
+        var pixPN = GetPixelR(imageData, x + 1, y - 1)
+        var pixNN = GetPixelR(imageData, x - 1, y - 1)
+        var pixNP = GetPixelR(imageData, x - 1, y + 1)
+        var mask = 0;
+        if (pix00 >= 128) mask |= 1 << 8;
+        if (pixP0 >= 128) mask |= 1 << 7;
+        if (pixN0 >= 128) mask |= 1 << 6;
+        if (pix0P >= 128) mask |= 1 << 5;
+        if (pix0N >= 128) mask |= 1 << 4;
+        if (pixPP >= 128) mask |= 1 << 3;
+        if (pixPN >= 128) mask |= 1 << 2;
+        if (pixNN >= 128) mask |= 1 << 1;
+        if (pixNP >= 128) mask |= 1;
+        var pixUL = (pix00 + pixN0 + pixNN + pix0N) * 0.25*/
+        var gradX = 0;
+        var gradY = 0;
+        gradX = pixN0 - pixP0;
+        gradY = pix0N - pix0P;
+        return {x: gradX, y: gradY};
+      }
+
+      function NearestPixelDistance(imageData, x, y) {
+        x = x | 0;
+        y = y | 0;
+        var sign = 1;
+        if (GetPixelR(imageData, x, y) >= 128) sign = -sign;
+
+        var minDist = cellSize * 1.414;
+        var nearestGradX = 0;
+        var nearestGradY = 0;
+        var grad = {x:0, y:0};
+        for (var rad = 0; rad < cellSize; rad++) {
+          for (var dx = -rad; dx <= rad; dx++) {
+            var posx = (x + dx);
+            // if (posx < Math.floor(x / cellSize) * cellSize) continue;
+            // if (posx > Math.floor(x / cellSize) * cellSize + cellSize) continue;
+            var posy = (y - rad);
+            if ((Math.floor(posx / cellSize) == Math.floor(x / cellSize)) && (Math.floor(posy / cellSize) == Math.floor(y / cellSize))) {
+              if (GetPixelR(imageData, posx, posy)*sign >= 128*sign) {
+                dist = Math.sqrt((posx - x) * (posx - x) + (posy - y) * (posy - y));
+                dist += sign * 0.5 - 0.5;
+                dist *= sign;
+                if (dist < minDist) {
+                  minDist = dist;
+                  grad = CalcGrad(imageData, posx, posy);
+                }
+              }
+            }
+            posy = y + rad;
+            if ((Math.floor(posx / cellSize) == Math.floor(x / cellSize)) && (Math.floor(posy / cellSize) == Math.floor(y / cellSize))) {
+              if (GetPixelR(imageData, posx, posy)*sign >= 128*sign) {
+                dist = Math.sqrt((posx - x) * (posx - x) + (posy - y) * (posy - y));
+                dist += sign * 0.5 - 0.5;
+                dist *= sign;
+                if (dist < minDist) {
+                  minDist = dist;
+                  grad = CalcGrad(imageData, posx, posy);
+                }
+              }
+            }
+          }
+          for (var dy = -rad; dy <= rad; dy++) {
+            var posx = x - rad;
+            var posy = y + dy;
+            // if (posy < Math.floor(y / cellSize) * cellSize) continue;
+            // if (posy > Math.floor(y / cellSize) * cellSize + cellSize) continue;
+            if ((Math.floor(posx / cellSize) == Math.floor(x / cellSize)) && (Math.floor(posy / cellSize) == Math.floor(y / cellSize))) {
+              if (GetPixelR(imageData, posx, posy)*sign >= 128*sign) {
+                dist = Math.sqrt((posx - x) * (posx - x) + (posy - y) * (posy - y));
+                dist += sign * 0.5 - 0.5;
+                dist *= sign;
+                if (dist < minDist) {
+                  minDist = dist;
+                  grad = CalcGrad(imageData, posx, posy);
+                }
+              }
+            }
+            posx = x + rad;
+            if ((Math.floor(posx / cellSize) == Math.floor(x / cellSize)) && (Math.floor(posy / cellSize) == Math.floor(y / cellSize))) {
+              if (GetPixelR(imageData, posx, posy)*sign >= 128*sign) {
+                dist = Math.sqrt((posx - x) * (posx - x) + (posy - y) * (posy - y));
+                dist += sign * 0.5 - 0.5;
+                dist *= sign;
+                if (dist < minDist) {
+                  minDist = dist;
+                  grad = CalcGrad(imageData, posx, posy);
+                }
+              }
+            }
+          }
+          // Quit if rad > sqrt(2) rounded up times minDist
+          if (rad > minDist * 1.5) break;
+        }
+        // make the border exactly at the zero crossing.
+        dist -= 0.5;
+        return {dist: minDist, gradX : grad.x, gradY : grad.y};
+      }
+      function GetPixelR(imageData, x, y) {
+        if (x < 0) return 0;
+        if (y < 0) return 0;
+        if (x >= imageData.width) return 0;
+        if (y >= imageData.height) return 0;
+        return imageData.data[((y*(imageData.width*4)) + (x*4)) + 0];
+      }
+      function SetPixelR(imageData, x, y, pix) {
+        imageData.data[((y*(imageData.width*4)) + (x*4)) + 0] = pix;
+      }
+      function SetPixelG(imageData, x, y, pix) {
+        imageData.data[((y*(imageData.width*4)) + (x*4)) + 1] = pix;
+      }
+      function SetPixelB(imageData, x, y, pix) {
+        imageData.data[((y*(imageData.width*4)) + (x*4)) + 2] = pix;
+      }
+      function SetPixelA(imageData, x, y, pix) {
+        imageData.data[((y*(imageData.width*4)) + (x*4)) + 3] = pix;
+      }
+
+      function GenChar() {
+        canvas = createTextCanvas('white', undefined);
+        document.body.appendChild(canvas);
+      }
+
+      function autorun()
+      {
+        GenChar();
+        document.body.style.background = "#888";
+      }
+      if (document.addEventListener) document.addEventListener("DOMContentLoaded", autorun, false);
+      else if (document.attachEvent) document.attachEvent("onreadystatechange", autorun);
+      else window.onload = autorun;
+    </script>
+  </body>
+</html>
