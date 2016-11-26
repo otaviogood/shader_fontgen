@@ -9,8 +9,13 @@
     <script type="text/javascript">
       symbols = ["☀☁☂☃★☆☺☻♩♪♫♬♭♮♯♡",
         "←↑→↓↔↕↖↗↘↙⇦⇧⇨⇩↺↻",
-        "∀∁∂∃∄∅∆∇∈∉∊∋∌∍∎∏",
-        "∐∑−∓∔∕∖∗∘∙√∛∜∝∞∟"];
+        "αβγδεθλμξπρστφψω",
+        "ΓΔΘΛΠΣΦΨΩ∇√∞∘∫  "];
+        // "αβγδεθλμξπρστφψω"
+        // "ΓΔΘΛΠΣΦΨΩ"
+        // "∇√∞∘∫"
+        // "⏮⏪⏴⏺⏹⏸⏵⏩⏭"
+        // "📷📹📽🕨🕪🖮"
 
       cellSize = 64 | 0;
       texSize = 1024 | 0;
@@ -25,7 +30,7 @@
         canvas.width = texSize;
         canvas.height = texSize;
         canvas.style.backgroundColor = 'rgba(100, 40, 60, 1.0)';
-        ctx.fillRect(0, 0, texSize, texSize);
+        // ctx.fillRect(0, 0, texSize, texSize);
         for (var y = 0; y < tileCount; y++) {
           for (var x = 0; x < tileCount; x++) {
             ctx.fillRect((x+1)*cellSize-1,0,1,canvas.width);
@@ -61,9 +66,9 @@
         var myImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         //blueComponent = myImageData.data[((50*(myImageData.width*4)) + (200*4)) + 2];
         //myImageData.data[((2*(myImageData.width*4)) + (2*4)) + 2] = 255;
-        for (var y = 0; y < 3; y++) {
+        for (var y = 0; y < 1; y++) {
           console.log("Row " + y);
-          for (var x = 0; x < tileCount; x++) {
+          for (var x = 0; x < 1; x++) {
             console.log("Col " + x);
             for (var dy = 0; dy < cellSize; dy++) {
               for (var dx = 0; dx < cellSize; dx++) {
