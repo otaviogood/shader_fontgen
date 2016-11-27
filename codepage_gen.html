@@ -20,9 +20,9 @@
         // "♡♥"
 
 
-      downCount = 2;
-      cellSize = 256 | 0;
-      texSize = 4096 | 0;
+      downCount = 3;
+      cellSize = 512 | 0;
+      texSize = 8192 | 0;
 
       tileCount = (texSize / cellSize) | 0;
       bufferF = new Float32Array(texSize * texSize);
@@ -128,16 +128,11 @@
         canvas.width = texSize >> downCount;
         canvas.height = texSize >> downCount;
         newImg = myImageData;
-        for (var i = 0; i < downCount; i++) {
-          DownSampleF();
-          newImg = DownSampleR(newImg, ctx);
-        }
-        //myImageData.data.set(newImg);
-        CopyInToA(newImg);
+        // Calc gradients from floating point distances
         for (var y = 0; y < newImg.height; y++) {
           for (var x = 0; x < newImg.width; x++) {
             var grad = CalcGradF(x, y);
-            var gradScale = 64.0;
+            var gradScale = cellSize;
             var gradX = (grad[0] * gradScale) | 0;
             var gradY = (grad[1] * gradScale) | 0;
             // gradX /= 2;
@@ -150,6 +145,12 @@
             SetPixelB(newImg, x, y, gradY);
           }
         }
+        for (var i = 0; i < downCount; i++) {
+          DownSampleF();
+          newImg = DownSample(newImg, ctx);
+        }
+        //myImageData.data.set(newImg);
+        CopyInToA(newImg);
 
         ctx.putImageData(myImageData, 0, 0);
         ctx.putImageData(newImg, 0, 0);
@@ -252,7 +253,7 @@
         }
       }
 
-      function DownSampleR(imageData, ctx) {
+      function DownSample(imageData, ctx) {
         var w2 = (imageData.width / 2) | 0;
         var h2 = (imageData.height / 2) | 0;
         // var buf2 = new Uint8ClampedArray(w2 * h2);
@@ -266,6 +267,23 @@
             f0 *= 0.25;
             // buf2[y*w2 + x] = f0 | 0;
             SetPixelR(buf2, x, y, f0 | 0);
+
+            f0 = GetPixelG(imageData, x * 2, y * 2);
+            f0 += GetPixelG(imageData, x * 2 + 1, y * 2);
+            f0 += GetPixelG(imageData, x * 2, y * 2 + 1);
+            f0 += GetPixelG(imageData, x * 2 + 1, y * 2 + 1);
+            f0 *= 0.25;
+            // buf2[y*w2 + x] = f0 | 0;
+            SetPixelG(buf2, x, y, f0 | 0);
+
+            f0 = GetPixelB(imageData, x * 2, y * 2);
+            f0 += GetPixelB(imageData, x * 2 + 1, y * 2);
+            f0 += GetPixelB(imageData, x * 2, y * 2 + 1);
+            f0 += GetPixelB(imageData, x * 2 + 1, y * 2 + 1);
+            f0 *= 0.25;
+            // buf2[y*w2 + x] = f0 | 0;
+            SetPixelB(buf2, x, y, f0 | 0);
+
             SetPixelA(buf2,x,y,255);
           }
         }
