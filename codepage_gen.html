@@ -20,9 +20,10 @@
         // "♡♥"
 
 
-      downCount = 3;
-      cellSize = 512 | 0;
-      texSize = 8192 | 0;
+      // 4 for highest quality. (6 hour run)
+      downCount = 0;
+      cellSize = (64 * Math.pow(2, downCount)) | 0;
+      texSize = (1024 * Math.pow(2, downCount)) | 0;
 
       tileCount = (texSize / cellSize) | 0;
       bufferF = new Float32Array(texSize * texSize);
@@ -132,7 +133,7 @@
         for (var y = 0; y < newImg.height; y++) {
           for (var x = 0; x < newImg.width; x++) {
             var grad = CalcGradF(x, y);
-            var gradScale = cellSize;
+            var gradScale = cellSize * (254.0/256.0);  // Don't go so far that we clamp. Important thing is good directionality.
             var gradX = (grad[0] * gradScale) | 0;
             var gradY = (grad[1] * gradScale) | 0;
             // gradX /= 2;
@@ -189,7 +190,7 @@
           for (var dx = 0; dx < cellSize; dx++) {
             var pixx = tx * cellSize + dx;
             var pixy = ty * cellSize + dy;
-            SetPixelF(pixx, pixy, cellSize);
+            SetPixelF(pixx, pixy, cellSize * cellSize);
           }
         }
         // For every border pixel, draw a cone of distance from it. Only draw if smaller than existing
@@ -198,37 +199,48 @@
           var posx = (pixel % imageData.width) | 0;
           var posy = (pixel / imageData.width) | 0;
           //SetPixelB(imageData, posx, posy, 255);
-          var sign = 1;
-          if (GetPixelR(imageData, posx, posy) >= 128) sign = -sign;
-          if (sign < 0) {
+          var lightPixel = GetPixelR(imageData, posx, posy) >= 128;
+          if (lightPixel) {
             for (var dy = 0; dy < cellSize; dy++) {
+              var pixy = ty * cellSize + dy;
+              var rindex = ((pixy*(imageData.width*4)) + (tx * cellSize*4)) + 0;
               for (var dx = 0; dx < cellSize; dx++) {
                 var pixx = tx * cellSize + dx;
-                var pixy = ty * cellSize + dy;
-                var currentSign = GetPixelR(imageData, pixx, pixy) >= 128 ? -1 : 1;
-                if (currentSign != sign) {
-                  var distSquared = Math.sqrt((posx-pixx) * (posx-pixx) + (posy-pixy)*(posy-pixy));
-                  distSquared -= 0.5;  // Make edge of bitmap the zero crossing.
-                  var current = GetPixelF(pixx, pixy);
+                // var currentLight = GetPixelR(imageData, pixx, pixy) >= 128;
+                var currentLight = imageData.data[rindex] >= 128;
+                rindex += 4;
+                if (currentLight != lightPixel) {
+                  var distSquared = (posx-pixx) * (posx-pixx) + (posy-pixy)*(posy-pixy);
+                  // distSquared -= 0.5;  // Make edge of bitmap the zero crossing.
+                  var findex = pixy*widthF + pixx;
+                  var current = bufferF[findex];
+                  // var current = GetPixelF(pixx, pixy);
                   if (distSquared < current) {
-                    SetPixelF(pixx, pixy, distSquared);
+                    bufferF[findex] = distSquared;
+                    // SetPixelF(pixx, pixy, distSquared);
                   }
                 }
               }
             }
           }
-          if (sign > 0) {
+          if (!lightPixel) {
             for (var dy = 0; dy < cellSize; dy++) {
+              var pixy = ty * cellSize + dy;
+              var rindex = ((pixy*(imageData.width*4)) + (tx * cellSize*4)) + 0;
               for (var dx = 0; dx < cellSize; dx++) {
                 var pixx = tx * cellSize + dx;
-                var pixy = ty * cellSize + dy;
-                var currentSign = GetPixelR(imageData, pixx, pixy) >= 128 ? -1 : 1;
-                if (currentSign != sign) {
-                  var distSquared = Math.sqrt((posx-pixx) * (posx-pixx) + (posy-pixy)*(posy-pixy));
-                  distSquared -= 0.5;  // Make edge of bitmap the zero crossing.
-                  var current = GetPixelF(pixx, pixy);
+                // var currentLight = GetPixelR(imageData, pixx, pixy) >= 128;
+                var currentLight = imageData.data[rindex] >= 128;
+                rindex += 4;
+                if (currentLight != lightPixel) {
+                  var distSquared = (posx-pixx) * (posx-pixx) + (posy-pixy)*(posy-pixy);
+                  // distSquared -= 0.5;  // Make edge of bitmap the zero crossing.
+                  var findex = pixy*widthF + pixx;
+                  var current = bufferF[findex];
+                  // var current = GetPixelF(pixx, pixy);
                   if (distSquared < current) {
-                    SetPixelF(pixx, pixy, distSquared);
+                    bufferF[findex] = distSquared;
+                    // SetPixelF(pixx, pixy, distSquared);
                   }
                 }
               }
@@ -243,6 +255,7 @@
             var pixy = ty * cellSize + dy;
             var currentSign = GetPixelR(imageData, pixx, pixy) >= 128 ? -1 : 1;
             var current = GetPixelF(pixx , pixy);
+            current = Math.sqrt(current) - 0.5;  // Make edge of bitmap the zero crossing.
             current *= scaler;
             if (currentSign == -1) {
               SetPixelF(pixx, pixy, -current);
