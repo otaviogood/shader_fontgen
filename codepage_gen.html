@@ -119,7 +119,7 @@ To the extent possible under law, the author(s) have dedicated all copyright and
           for (var x = 0; x < newImg.width; x++) {
             var grad = CalcGradF(x, y);
             // var localCellSize = ((newImg.width >> downCount) / 4) | 0;
-            var gradScale = cellSize * (254.0/256.0);  // Don't go so far that we clamp. Important thing is good directionality.
+            var gradScale = cellSize * (253.0/256.0);  // Don't go so far that we clamp. Important thing is good directionality.
             var gradX = (grad[0] * gradScale) | 0;
             var gradY = (grad[1] * gradScale) | 0;
             // gradX /= 2;
