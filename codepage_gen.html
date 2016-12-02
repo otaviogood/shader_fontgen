@@ -28,10 +28,10 @@ To the extent possible under law, the author(s) have dedicated all copyright and
 
 
       // downCount 4, divisions 2.0 - 50 minute run.
-      downCount = 1;
+      downCount = 4;
       cellSize = (64 * Math.pow(2, downCount)) | 0;
       texSize = (1024 * Math.pow(2, downCount)) | 0;
-      divisions = 1.0;
+      divisions = 4.0;
 
       tileCount = (texSize / cellSize) | 0;
       bufferF = new Float32Array(texSize * texSize);
@@ -75,12 +75,16 @@ To the extent possible under law, the author(s) have dedicated all copyright and
               posy += cellSize * 0.0625;
               if (x == 4) posy -= cellSize * 0.09375;
             }
+            if ((y==1) && (x==13)) {
+              posy += cellSize * 0.046875;
+            }
             if ((y==0) && (x<9)) {
               ctx.font = fontStrC;
               // posy -= cellSize * 0.046875;
             }
             mw = ctx.measureText(text).width;
             if (y <= 1) posx = (cellSize-mw) / 2 + x * cellSize;  // Center symbols
+            if ((y==1) && (x==13)) posx += cellSize * 0.046875;
             ctx.fillText(text, posx, posy);
           }
         }
@@ -135,8 +139,8 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         }
         CopyInToA(newImg);
 
-        canvas.width = 1024;//texSize >> downCount;
-        canvas.height = 1024;//texSize >> downCount;
+        canvas.width = texSize;
+        canvas.height = texSize;
         // ctx.putImageData(myImageData, 0, 0);
         ctx.putImageData(newImg, 0, 0);
 
