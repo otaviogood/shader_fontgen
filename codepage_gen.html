@@ -27,10 +27,11 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         // "♡♥"
 
 
-      // 4 for highest quality. (6 hour run)
-      downCount = 0;
+      // downCount 4, divisions 2.0 - 50 minute run.
+      downCount = 1;
       cellSize = (64 * Math.pow(2, downCount)) | 0;
       texSize = (1024 * Math.pow(2, downCount)) | 0;
+      divisions = 1.0;
 
       tileCount = (texSize / cellSize) | 0;
       bufferF = new Float32Array(texSize * texSize);
@@ -57,6 +58,7 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         }
         ctx.fillStyle = color || 'white';
         for (var y = 0; y < tileCount; y++) {
+          console.log(y);
           for (var x = 0; x < tileCount; x++) {
             ctx.font = fontStrB;
             var text = String.fromCharCode(x + y * tileCount)
@@ -75,7 +77,7 @@ To the extent possible under law, the author(s) have dedicated all copyright and
             }
             if ((y==0) && (x<9)) {
               ctx.font = fontStrC;
-              posy -= cellSize * 0.046875;
+              // posy -= cellSize * 0.046875;
             }
             mw = ctx.measureText(text).width;
             if (y <= 1) posx = (cellSize-mw) / 2 + x * cellSize;  // Center symbols
@@ -83,19 +85,20 @@ To the extent possible under law, the author(s) have dedicated all copyright and
           }
         }
 
-        myImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        newImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        newImg = DownSample(newImg, ctx);
+        // newImg = DownSample(newImg, ctx);
 
         for (var y = 0; y < heightF; y++) {
           for (var x = 0; x < widthF; x++) {
-            SetPixelG(myImageData, x, y, 0);
-            SetPixelB(myImageData, x, y, 0);
+            SetPixelG(newImg, x, y, 0);
+            SetPixelB(newImg, x, y, 0);
             SetPixelF(x, y, 0);
           }
         }
 
-        var pointsOnLinePairs = Vectorize(myImageData);
+        var pointsOnLinePairs = Vectorize(newImg);
         var pointsOnLines = [];
-        var divisions = 4.0;
         for (var i = 0; i < pointsOnLinePairs.length; i++) {
           for (var sub = 0; sub < divisions; sub++) {
             var posA = [pointsOnLinePairs[i][0], pointsOnLinePairs[i][1]];
@@ -104,15 +107,14 @@ To the extent possible under law, the author(s) have dedicated all copyright and
             pointsOnLines.push(current);
           }
         }
-        FillDistancePrecise(myImageData, pointsOnLines);
+        FillDistancePrecise(newImg, pointsOnLines);
 
-        canvas.width = texSize >> downCount;
-        canvas.height = texSize >> downCount;
-        newImg = myImageData;
+        // newImg = myImageData;
         // Calc gradients from floating point distances
         for (var y = 0; y < newImg.height; y++) {
           for (var x = 0; x < newImg.width; x++) {
             var grad = CalcGradF(x, y);
+            // var localCellSize = ((newImg.width >> downCount) / 4) | 0;
             var gradScale = cellSize * (254.0/256.0);  // Don't go so far that we clamp. Important thing is good directionality.
             var gradX = (grad[0] * gradScale) | 0;
             var gradY = (grad[1] * gradScale) | 0;
@@ -126,13 +128,16 @@ To the extent possible under law, the author(s) have dedicated all copyright and
             SetPixelB(newImg, x, y, gradY);
           }
         }
-        for (var i = 0; i < downCount; i++) {
+        var remaining = downCount;
+        for (var i = 0; i < remaining; i++) {
           DownSampleF();
           newImg = DownSample(newImg, ctx);
         }
         CopyInToA(newImg);
 
-        ctx.putImageData(myImageData, 0, 0);
+        canvas.width = 1024;//texSize >> downCount;
+        canvas.height = 1024;//texSize >> downCount;
+        // ctx.putImageData(myImageData, 0, 0);
         ctx.putImageData(newImg, 0, 0);
 
         // ctx.strokeStyle = '#ffffff';
@@ -152,111 +157,6 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         return canvas;
       }
 
-      function IsBorderPixel(imageData, x, y) {
-        var pix00 = GetPixelRTile(imageData, x, y, x, y)
-        var pixP0 = GetPixelRTile(imageData, x, y, x + 1, y)
-        var pixN0 = GetPixelRTile(imageData, x, y, x - 1, y)
-        var pix0P = GetPixelRTile(imageData, x, y, x, y + 1)
-        var pix0N = GetPixelRTile(imageData, x, y, x, y - 1)
-        var on = pix00 >= 128;
-        if ((pixP0 >= 128) != on) return true;
-        if ((pixN0 >= 128) != on) return true;
-        if ((pix0P >= 128) != on) return true;
-        if ((pix0N >= 128) != on) return true;
-        return false;
-      }
-      function FindBorderPixels(imageData, tx, ty) {
-        var borderPixels = new Set();
-        for (var dy = 0; dy < cellSize; dy++) {
-          for (var dx = 0; dx < cellSize; dx++) {
-            var posx = tx * cellSize + dx;
-            var posy = ty * cellSize + dy;
-            var border = IsBorderPixel(imageData, posx, posy);
-            if (border) borderPixels.add((posx + posy * imageData.width) | 0)
-          }
-        }
-        return borderPixels;
-      }
-      function FillDistance(imageData, borderPixels, tx, ty) {
-        // Clear cell to max value.
-        for (var dy = 0; dy < cellSize; dy++) {
-          for (var dx = 0; dx < cellSize; dx++) {
-            var pixx = tx * cellSize + dx;
-            var pixy = ty * cellSize + dy;
-            SetPixelF(pixx, pixy, cellSize * 1.5 * cellSize * 1.5);
-          }
-        }
-        // For every border pixel, draw a cone of distance from it. Only draw if smaller than existing
-        // pixels so we get minimum distance everywhere.
-        for (let pixel of borderPixels) {
-          var posx = (pixel % imageData.width);
-          var posy = (pixel / imageData.width);
-          var pix00 = GetPixelR(imageData, posx | 0, posy | 0);
-          //SetPixelB(imageData, posx, posy, 255);
-          var lightPixel = GetPixelR(imageData, posx | 0, posy | 0) >= 128;
-          for (var dy = 0; dy < cellSize; dy++) {
-            var pixy = ty * cellSize + dy;
-            var rindex = ((pixy*(imageData.width*4)) + (tx * cellSize*4)) + 0;
-            for (var dx = 0; dx < cellSize; dx++) {
-              var pixx = tx * cellSize + dx;
-              // var currentLight = GetPixelR(imageData, pixx, pixy) >= 128;
-              // var currentPix = imageData.data[rindex];
-              var currentLight = imageData.data[rindex] >= 128;
-              rindex += 4;
-              if (currentLight != lightPixel) {
-                var distSquared = ((posx-pixx) * (posx-pixx) + (posy-pixy)*(posy-pixy));
-                // distSquared -= 0.5;  // Make edge of bitmap the zero crossing.
-                var findex = pixy*widthF + pixx;
-                var current = bufferF[findex];
-                // var current = GetPixelF(pixx, pixy);
-                if (distSquared < current) {
-                  bufferF[findex] = distSquared;
-                  // SetPixelF(pixx, pixy, distSquared);
-                } //else {
-                  //skip = Math.max(0, (distSquared) - (current) - 30) | 0;
-                  //dx += skip;
-                  //rindex += skip * 4;
-                //}
-              }
-            }
-          }
-        }
-        var scaler = 1.0 / (Math.pow(2, downCount))
-        // Negate inside of letter for signed distance function.
-        for (var dy = 0; dy < cellSize; dy++) {
-          for (var dx = 0; dx < cellSize; dx++) {
-            var pixx = tx * cellSize + dx;
-            var pixy = ty * cellSize + dy;
-            var currentSign = GetPixelR(imageData, pixx, pixy) >= 128 ? -1 : 1;
-            var current = GetPixelF(pixx , pixy);
-            current = Math.sqrt(current) - 0.5;  // Make edge of bitmap the zero crossing.
-            current *= scaler;
-            if (currentSign == -1) {
-              SetPixelF(pixx, pixy, -current);
-            } else {
-              SetPixelF(pixx, pixy, current);
-            }
-          }
-        }
-
-        // blur distances around border pixels. :(
-        var bufferF2 = new Float32Array(borderPixels.size);
-        var index = 0;
-        for (let pixel of borderPixels) {
-          var posx = (pixel % imageData.width);
-          var posy = (pixel / imageData.width);
-          bufferF2[index] = Blur(posx | 0, posy | 0);
-          index++;
-        }
-        index = 0;
-        for (let pixel of borderPixels) {
-          var posx = (pixel % imageData.width);
-          var posy = (pixel / imageData.width);
-          SetPixelF(posx | 0, posy | 0, bufferF2[index]);
-          index++;
-        }
-      }
-
       function FillDistancePrecise(imageData, borderLines) {
         // Clear image to max value.
         for (var i = 0; i < widthF * heightF; i++) {
@@ -264,7 +164,10 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         }
         // For every border pixel, draw a cone of distance from it. Only draw if smaller than existing
         // pixels so we get minimum distance everywhere.
+        var total = 0;
         for (let pixel of borderLines) {
+          if ((total % 512) == 0) console.log("percent finished: " + (total*100.0 / borderLines.length));
+          total++;
           var posx = pixel[0];
           var posy = pixel[1];
           var tx = (posx / cellSize) | 0;
@@ -345,9 +248,18 @@ To the extent possible under law, the author(s) have dedicated all copyright and
             // buf2[y*w2 + x] = f0 | 0;
             SetPixelB(buf2, x, y, f0 | 0);
 
-            SetPixelA(buf2,x,y,255);
+            f0 = GetPixelA(imageData, x * 2, y * 2);
+            f0 += GetPixelA(imageData, x * 2 + 1, y * 2);
+            f0 += GetPixelA(imageData, x * 2, y * 2 + 1);
+            f0 += GetPixelA(imageData, x * 2 + 1, y * 2 + 1);
+            f0 *= 0.25;
+            // buf2[y*w2 + x] = f0 | 0;
+            SetPixelA(buf2, x, y, f0 | 0);
           }
         }
+        downCount -= 1;
+        cellSize = (cellSize / 2) | 0;
+        texSize = (texSize / 2) | 0;
         return buf2;
       }
       function DownSampleF() {
@@ -469,6 +381,10 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         if (!InRange(imageData, x, y)) return 0;
         return imageData.data[((y*(imageData.width*4)) + (x*4)) + 2];
       }
+      function GetPixelA(imageData, x, y) {
+        if (!InRange(imageData, x, y)) return 0;
+        return imageData.data[((y*(imageData.width*4)) + (x*4)) + 3];
+      }
       function SetPixelR(imageData, x, y, pix) {
         imageData.data[((y*(imageData.width*4)) + (x*4)) + 0] = pix;
       }
@@ -531,7 +447,7 @@ To the extent possible under law, the author(s) have dedicated all copyright and
 
 
       function Vectorize(imageData) {
-        var threshold = 128;
+        var threshold = 128 | 0;
         //List<float4> v = new List<float4>();
         var v = [];
         //float2[] vertList = new float2[4];
@@ -540,10 +456,11 @@ To the extent possible under law, the author(s) have dedicated all copyright and
         {
           for (var x = 0; x < imageData.width - 1; x++)
           {
-            var pix00 = GetPixelR(imageData, x, y);
-            var pix10 = GetPixelR(imageData, x + 1, y);
-            var pix01 = GetPixelR(imageData, x, y + 1);
-            var pix11 = GetPixelR(imageData, x + 1, y + 1);
+            var pixIndexR = ((y*(imageData.width*4)) + (x*4)) + 0;
+            var pix00 = imageData.data[pixIndexR] | 0;// GetPixelR(imageData, x, y);
+            var pix10 = imageData.data[pixIndexR + 4] | 0;// GetPixelR(imageData, x + 1, y);
+            var pix01 = imageData.data[pixIndexR + imageData.width*4] | 0;// GetPixelR(imageData, x, y + 1);
+            var pix11 = imageData.data[pixIndexR + imageData.width*4 + 4] | 0;// GetPixelR(imageData, x + 1, y + 1);
 
             var squareIndex = 0 | 0;
             if (pix00 < threshold) squareIndex |= 1;
